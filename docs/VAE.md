@@ -1,0 +1,1 @@
+[PyTorch can convert arrays of indices to one-hot vectors](https://sparrow.dev/pytorch-one-hot-encoding/)
