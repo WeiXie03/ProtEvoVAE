@@ -22,15 +22,18 @@ Protein *sequences*
 
 # The Plan
 ### "Workflow" for User
-Run `latent_project_msas.py --align-ref <FASTA file containing only one sequence, the reference one to use for alignment>` .
+Run `latent_project_msas.py --align-ref <PFam ID of "query" seq>` .
 ^
-1. read ref sequence from FASTA file
-2. GET (request) from InterPro API
-3. convert characters to numbers; i.e. enumerate the a.a.'s
-4. use PyTorch to convert *each* representative number to a one-hot *vector*
+1. GET (request) from InterPro API
+2. convert characters to numbers; i.e. enumerate the a.a.'s
+3. use PyTorch to convert *each* representative number to a one-hot *vector*
    final representation fed into model will be a NumPy array, `(# sequences) x (# a.a.'s)*(# MSA's)`, one row / sequence
-	1. each row is just all the one-hot vectors for the sequence slapped end-to-end one after another
-	2. need "space" for all possible a.a. types *per MSA*
- - 
+	- each row is just all the one-hot vectors for the sequence slapped end-to-end one after another
+	- need "space" for all possible a.a. types *per MSA*
 
 [Numpy - Converting between Chars and Ints](https://gist.github.com/tkf/2276773)
+
+## Encoding
+Each a.a. converted to a **one-hot** vector, *size = number of amino acid "types"*.
+***Gaps encoded as 0'th position in one-hot vector***.
+=> To the model, gaps are just another dimension of the same vector including all the amino acid

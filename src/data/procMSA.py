@@ -115,17 +115,33 @@ def calc_seq_weights(msa: np.array) -> np.array:
     equal to number of sequences.
     '''
     
-    weights = np.empty(msa.shape)
+    # TODO: perhaps look into [using np.vectorize()](https://stackoverflow.com/a/58478502/10855624) for faster implementation
+    weights_mtx = np.empty(msa.shape)
     # for each column
     for j in range(msa.shape[1]):
-        aa_type, aa_counts = np.unique(msa, return_counts=True)
+        aa_types, aa_counts = np.unique(msa[:,j], return_counts=True)
+        inv_num_types = 1.0 / len(aa_types)
         # For quick lookup of corresponding aa
         counts_inds = {}
+        for aa in aa_types:
+            # np.unique() returns sorted unique array, need to get corresponding index
+            unique_aatypes_ind = aa_types.searchsorted(aa)
+            counts_inds[aa] = aa_counts[unique_aatypes_ind]
         for i in range(msa.shape[0]):
-            counts_inds[i] = aa_counts[i]
+            # freq of seq i's aa in column j
+            weights_mtx[i,j] = inv_num_types * (1.0 / counts_inds[msa[i,j]])
+    # sum across columns within each sequence
+    seq_weight_tots = np.sum(weights_mtx, axis=1)
+    return (1.0/np.sum(seq_weight_tots) * seq_weight_tots)
 
 if __name__ == "__main__":
     fam_id = "PF00041"
     msas_dir = DATA_DIR / "external" / "MSA"
     enumd_mtx = proc_MSA(msas_dir / "{}.sth".format(fam_id), "A0A6P7LW62_BETSP/432-517")
     print(enumd_mtx)
+    with open(DATA_DIR / "processed" / "enumd_mtx_{}.pkl".format(fam_id), "wb") as f:
+        pickle.dump("enumerated alignment: ", enumd_mtx, f)
+    seq_weights = calc_seq_weights(enumd_mtx)
+    print("weights: ", seq_weights)
+    with open(DATA_DIR / "processed" / "seq_weights_{}.pkl".format(fam_id), "wb") as f:
+        pickle.dump(seq_weights, f)
