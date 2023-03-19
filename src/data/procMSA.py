@@ -73,7 +73,7 @@ def enum_seqs(lettMSA: np.array, query_seq_id: str) -> np.array:
     # amino acids from 1 - 20, 0 for gaps
     aas = np.array(AAs)
     np.append(aas, ('-','.'))
-    print(aas)
+    # print(aas)
     enums = np.arange(1, len(AAs) + 1)
     np.append(aas, (0,0))
 
@@ -83,7 +83,7 @@ def enum_seqs(lettMSA: np.array, query_seq_id: str) -> np.array:
     print("sorted inds: ", sorted_inds)
     print("original aas: ", aas)
     aas = aas[sorted_inds]
-    print("aas[sorted_inds]: ", aas[sorted_inds])
+    print("aas[sorted_inds]: ", aas)
     enums = enums[sorted_inds]
 
     inds = np.searchsorted(aas, lettMSA.ravel()).reshape(lettMSA.shape)
@@ -141,9 +141,9 @@ if __name__ == "__main__":
     fam_id = "PF00041"
     msas_dir = DATA_DIR / "external" / "MSA"
     enumd_mtx = proc_MSA(msas_dir / "{}.sth".format(fam_id), "A0A6P7LW62_BETSP/432-517")
-    print(enumd_mtx)
+    print("enumerated alginment: ", enumd_mtx)
     with open(DATA_DIR / "processed" / "enumd_mtx_{}.pkl".format(fam_id), "wb") as f:
-        pickle.dump("enumerated alignment: ", enumd_mtx, f)
+        pickle.dump(enumd_mtx, f)
     seq_weights = calc_seq_weights(enumd_mtx)
     print("weights: ", seq_weights)
     with open(DATA_DIR / "processed" / "seq_weights_{}.pkl".format(fam_id), "wb") as f:
