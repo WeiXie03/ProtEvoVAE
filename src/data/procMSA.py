@@ -80,7 +80,10 @@ def enum_seqs(lettMSA: np.array, query_seq_id: str) -> np.array:
     # Replace aa letters in MSA with numbers,
     # credits to https://stackoverflow.com/q/55949809
     sorted_inds = aas.argsort()
+    print("sorted inds: ", sorted_inds)
+    print("original aas: ", aas)
     aas = aas[sorted_inds]
+    print("aas[sorted_inds]: ", aas[sorted_inds])
     enums = enums[sorted_inds]
 
     inds = np.searchsorted(aas, lettMSA.ravel()).reshape(lettMSA.shape)
