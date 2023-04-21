@@ -140,11 +140,19 @@ def calc_seq_weights(msa: np.array) -> np.array:
 if __name__ == "__main__":
     fam_id = "PF00041"
     msas_dir = DATA_DIR / "external" / "MSA"
+
     enumd_mtx = proc_MSA(msas_dir / "{}.sth".format(fam_id), "A0A6P7LW62_BETSP/432-517")
     print("enumerated alginment: ", enumd_mtx)
-    with open(DATA_DIR / "processed" / "enumd_mtx_{}.pkl".format(fam_id), "wb") as f:
-        pickle.dump(enumd_mtx, f)
+
+    # with open(DATA_DIR / "processed" / "enumd_mtx_{}.pkl".format(fam_id), "wb") as f:
+    #     pickle.dump(enumd_mtx, f)
+    with open(DATA_DIR / "processed" / "enumd_mtx_{}.npy".format(fam_id), "wb") as f:
+        np.save(f, enumd_mtx)
+
     seq_weights = calc_seq_weights(enumd_mtx)
     print("weights: ", seq_weights)
-    with open(DATA_DIR / "processed" / "seq_weights_{}.pkl".format(fam_id), "wb") as f:
-        pickle.dump(seq_weights, f)
+
+    # with open(DATA_DIR / "processed" / "seq_weights_{}.pkl".format(fam_id), "wb") as f:
+    #     pickle.dump(seq_weights, f)
+    with open(DATA_DIR / "processed" / "seq_weights_{}.npy".format(fam_id), "wb") as f:
+        np.save(f, seq_weights)

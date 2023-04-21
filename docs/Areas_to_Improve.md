@@ -1,2 +1,0 @@
-- Currently, naive sequence-based approach learns star-shaped phylogeny for *all* families of proteins
-	^-- compare AlphaFold predictions, in addition to sequences, when "determining" protein similarity

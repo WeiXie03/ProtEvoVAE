@@ -22,14 +22,17 @@ Protein *sequences*
 
 # The Plan
 ### "Workflow" for User
-Run `latent_project_msas.py --align-ref <PFam ID of "query" seq>` .
+Run `project_msa.py --align-ref <PFam ID of "query" seq>` 
+- optional option: `--save_model_path <path to save trained torch model to>`
+	- if provided, trains VAE further on new data and saves updated model to specified path
 ^
-1. GET (request) from InterPro API
-2. convert characters to numbers; i.e. enumerate the a.a.'s
-3. use PyTorch to convert *each* representative number to a one-hot *vector*
-   final representation fed into model will be a NumPy array, `(# sequences) x (# a.a.'s)*(# MSA's)`, one row / sequence
-	- each row is just all the one-hot vectors for the sequence slapped end-to-end one after another
-	- need "space" for all possible a.a. types *per MSA*
+1. GET (request) from InterPro API => Stockholm (MSA) file
+2. run `proc_msa.py`: Stockholm file => enumerated a.a. matrix [pickled NumPy array]
+	- enumerated matrix is the MSA but just a.a. letters => numbers, 0 ~ 20
+	- output, enumerated a.a. matrix, has dimensions `(# sequences) x (alignment length in # letters)`, i.e. one row / sequence
+3. run 
+	- use torch to convert *each* representative number to a one-hot *vector*
+
 
 [Numpy - Converting between Chars and Ints](https://gist.github.com/tkf/2276773)
 
