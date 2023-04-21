@@ -14,23 +14,25 @@ class MSA_to_OneHot(object):
     def __init__(self, n_aa: int = 20):
         self.n_aa = n_aa
 
-    def __call__(self, msa: np.ndarray) -> torch.Tensor:
+    def __call__(self, enumd_seq: np.ndarray) -> torch.Tensor:
         """
         Convert a protein multiple sequence alignment to a one-hot encoding.
 
         Parameters
         ----------
-        msa : np.ndarray
-            A multiple sequence alignment of protein sequences.
+        enumd_seq : np.ndarray
+            One sequence in an enumd_seq of protein sequences.
 
         Returns
         -------
         torch.Tensor
-            A one-hot encoding of the multiple sequence alignment.
+            A one-hot encoding of the input.
         """
-        # should still be a 2D matrix, with each row being a sequence, each aa represented by a number 0-20
-        assert(msa.ndim == 2)
-        return F.one_hot(torch.from_numpy(msa), num_classes=self.n_aa)
+        # print("before transform shape:", enumd_seq.shape)
+        print("before transform:", enumd_seq)
+        assert(enumd_seq.ndim == 1)
+        # +1 to include '0', which represents alignment gaps
+        return F.one_hot(torch.from_numpy(enumd_seq), num_classes=(self.n_aa+1))
 
 # 1. load processed, enumerated sequence alignment
 # 2. convert NP array to tensor
@@ -41,9 +43,9 @@ class MSA_Dataset(Dataset):
     Helps manage processed multiple sequence alignment and related data.
     '''
 
-    def __init__(self, enumd_msa_binary: np.ndarray, seq_weight: np.ndarray, seq_keys: np.ndarray, transform=MSA_to_OneHot):
+    def __init__(self, enumd_msa: np.ndarray, seq_weight: np.ndarray, seq_keys: np.ndarray, transform=MSA_to_OneHot):
         '''
-        enumd_msa_binary: a two dimensional np.array, the original sequences with letters replaced by number.
+        enumd_msa: a two dimensional np.array, the original sequences with letters replaced by number.
                           size: [num_of_sequences, length_of_msa]
         seq_weight: one dimensional array.
                     size: [num_sequences].
@@ -52,25 +54,34 @@ class MSA_Dataset(Dataset):
         seq_keys: name of sequences in MSA
         '''
         super(MSA_Dataset).__init__()
-        self.enumd_msa_binary = enumd_msa_binary
+        self.enumd_msa = enumd_msa
         self.seq_weight = seq_weight
         self.seq_keys = seq_keys
-        self.transform = transform
+        self.transform = transform()
 
     def __len__(self):
         # number of sequences
-        assert(self.enumd_msa_binary.shape[0] == self.seq_weight.shape[0])
-        return self.enumd_msa_binary.shape[0]
+        assert(self.enumd_msa.shape[0] == self.seq_weight.shape[0])
+        return self.enumd_msa.shape[0]
 
     def __getitem__(self, ind):
         """
         Returns a tuple of (sequence, weight, key)
         sequence is a (# of amino acids) x (# of amino acid types) tensor,
         """
-        return (self.enumd_msa_binary[ind, :], self.seq_weight[ind], self.seq_keys[ind])
+        seq = self.enumd_msa[ind, :]
+        weight = self.seq_weight[ind]
+        aa_keys = self.seq_keys[ind]
+
+        if self.transform:
+            print("applying transform: ", self.transform)
+            seq = self.transform(seq)
+
+        seq = seq.to(torch.float32).flatten()
+        return (seq, weight, aa_keys)
     
 class VAE(nn.Module):
-    def __init__(self, n_aa_type: int, dim_latent: int, dim_msa: int, layers_n_hiddens: list[int]):
+    def __init__(self, n_aa_type: int, dim_latent: int, dim_seq_in: int, layers_n_hiddens: "list[int]"):
         super().__init__()
         # # of amino acid types
         self.n_aa_type = n_aa_type
@@ -78,14 +89,14 @@ class VAE(nn.Module):
         self.dim_latent = dim_latent
         # dimension of processed, enumerated representation of multiple sequence alignment
         # will flatten into a long vector
-        if isinstance(dim_msa, int):
-            self.dim_msa = dim_msa
-        elif isinstance(dim_msa, np.ndarray):
-            self.dim_msa = dim_msa.prod()
-        elif isinstance(dim_msa, tuple):
-            self.dim_msa = np.prod(dim_msa)
+        if isinstance(dim_seq_in, int):
+            self.dim_seq_in = dim_seq_in
+        elif isinstance(dim_seq_in, np.ndarray):
+            self.dim_seq_in = dim_seq_in.prod()
+        elif isinstance(dim_seq_in, tuple):
+            self.dim_seq_in = np.prod(dim_seq_in)
         else:
-            print("dim_msa must be an int, np.ndarray, or tuple")
+            print("dim_seq_in must be an int, np.ndarray, or tuple")
         # a list of ints, #s of hidden neurons in each layer of encoder and decoder networks
         self.layers_n_hiddens = layers_n_hiddens
 
@@ -98,7 +109,7 @@ class VAE(nn.Module):
             ))
 
         self.encoder_comm_layers = nn.ModuleList([nn.Sequential(
-            nn.Linear(self.dim_latent, self.layers_n_hiddens[0]),
+            nn.Linear(self.dim_seq_in, self.layers_n_hiddens[0]),
             nn.Tanh()
         )])
         self.encoder_comm_layers.extend(hidden_layers)
@@ -113,7 +124,7 @@ class VAE(nn.Module):
         )])
         decoder.extend(hidden_layers)
         decoder.append(nn.Sequential(
-            nn.Linear(self.layers_n_hiddens[-1], self.dim_msa)
+            nn.Linear(self.layers_n_hiddens[-1], self.dim_seq_in)
         ))
         decoder = nn.Sequential(*decoder)
 
@@ -137,11 +148,11 @@ class VAE(nn.Module):
         # "unflatten" back into 3D
         # for each sequence,
         #   for each position,
-        #     a vector, the prob distrib over all 20 a.a. types,
+        #     a vector, the prob distrib over all (20 a.a. types + 1 gap "type"),
         #     of length # of amino acid types
         n_seqs = out.shape[0]
         # don't need to explicitly specify alignment length, will infer, so -1
-        out = out.view(n_seqs-1, -1, self.n_aa_type)
+        out = out.view(n_seqs-1, -1, (self.n_aa_type+1))
         log_ps = F.log_softmax(out, dim=-1)
         return log_ps
         
