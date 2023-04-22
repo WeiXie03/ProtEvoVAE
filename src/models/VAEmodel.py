@@ -11,7 +11,7 @@ class MSA_to_OneHot(object):
     Convert a protein multiple sequence alignment to a one-hot encoding.
     """
 
-    def __init__(self, n_aa: int = 20):
+    def __init__(self, n_aa: int = 21):
         self.n_aa = n_aa
 
     def __call__(self, enumd_seq: np.ndarray) -> torch.Tensor:
@@ -32,7 +32,7 @@ class MSA_to_OneHot(object):
         print("before transform:", enumd_seq)
         assert(enumd_seq.ndim == 1)
         # +1 to include '0', which represents alignment gaps
-        return F.one_hot(torch.from_numpy(enumd_seq), num_classes=(self.n_aa+1))
+        return F.one_hot(torch.from_numpy(enumd_seq), num_classes=(self.n_aa))
 
 # 1. load processed, enumerated sequence alignment
 # 2. convert NP array to tensor
@@ -152,7 +152,7 @@ class VAE(nn.Module):
         #     of length # of amino acid types
         n_seqs = out.shape[0]
         # don't need to explicitly specify alignment length, will infer, so -1
-        out = out.view(n_seqs-1, -1, (self.n_aa_type+1))
+        out = out.view(n_seqs-1, -1, (self.n_aa_type))
         log_ps = F.log_softmax(out, dim=-1)
         return log_ps
         
