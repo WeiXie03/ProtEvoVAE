@@ -2,9 +2,11 @@
 Encode protein sequences into one-hot vectors, pickle for later use
 '''
 
+import argparse
 import json, pickle
 from pathlib import Path
 import numpy as np
+import pandas as pd
 from Bio import AlignIO
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -13,6 +15,16 @@ AAs = ['R', 'H', 'K',
         'S', 'T', 'N', 'Q',
         'C', 'G', 'P',
         'A', 'V', 'I', 'L', 'M', 'F', 'Y', 'W']
+
+def init_argparse() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        usage="%(prog)s [OPTION] [PFAM ID] [FILE] [QUERY SEQ ID]",
+        description="PFAM multiple sequence alignment processor: converts protein alignments from Stockholm file format to Numpy int arrays, with the amino acid types enumerated from 1 - 20, and 0 for gaps.",
+    )
+    parser.add_argument("PFAM_ID", type=str, help="PFAM accession ID of the family.")
+    parser.add_argument('MSA_file_path', type=str, help='Path to the input Stockholm sequence alignment file')
+    parser.add_argument('query_seq_ID', type=str, help='ID of query sequence used as the reference for the alignment.')
+    return parser
 
 def prune_seqs(msa: AlignIO.MultipleSeqAlignment, query_seq_id: str) -> np.array:
     '''
@@ -27,7 +39,7 @@ def prune_seqs(msa: AlignIO.MultipleSeqAlignment, query_seq_id: str) -> np.array
     query_ind = -1
     for i in range(len(msa)):
         if msa[i].id == query_seq_id:
-            print("a match")
+            print("query seq found in MSA")
             query_seq = msa[i].seq
             query_ind = i
             break
@@ -80,10 +92,10 @@ def enum_seqs(lettMSA: np.array, query_seq_id: str) -> np.array:
     # Replace aa letters in MSA with numbers,
     # credits to https://stackoverflow.com/q/55949809
     sorted_inds = aas.argsort()
-    print("sorted inds: ", sorted_inds)
-    print("original aas: ", aas)
+    # print("sorted inds: ", sorted_inds)
+    # print("original aas: ", aas)
     aas = aas[sorted_inds]
-    print("aas[sorted_inds]: ", aas)
+    # print("aas[sorted_inds]: ", aas)
     enums = enums[sorted_inds]
 
     inds = np.searchsorted(aas, lettMSA.ravel()).reshape(lettMSA.shape)
@@ -137,12 +149,29 @@ def calc_seq_weights(msa: np.array) -> np.array:
     seq_weight_tots = np.sum(weights_mtx, axis=1)
     return (1.0/np.sum(seq_weight_tots) * seq_weight_tots)
 
+def record_seqs_infos(MSA_file_name: Path) -> pd.DataFrame:
+    """
+    returns sequence IDs, names and "source" species name in a DataFrame
+    """
+    msa = AlignIO.read(MSA_file_name, "stockholm")
+
+    data = []
+    for seq in msa:
+        data.append([seq.id, seq.name, seq.description])
+    
+    return pd.DataFrame(data)
+
 if __name__ == "__main__":
-    fam_id = "PF00041"
+    parser = init_argparse()
+    args = parser.parse_args()
+    print(args)
+
+    fam_id = args.PFAM_ID
     msas_dir = DATA_DIR / "external" / "MSA"
 
-    enumd_mtx = proc_MSA(msas_dir / "{}.sth".format(fam_id), "A0A6P7LW62_BETSP/432-517")
-    print("enumerated alginment: ", enumd_mtx)
+    # enumd_mtx = proc_MSA(msas_dir / "{}.sth".format(fam_id), args.query_seq_ID)
+    enumd_mtx = proc_MSA(Path(args.MSA_file_path), args.query_seq_ID)
+    print("enumerated alignment: ", enumd_mtx)
 
     # with open(DATA_DIR / "processed" / "enumd_mtx_{}.pkl".format(fam_id), "wb") as f:
     #     pickle.dump(enumd_mtx, f)
@@ -156,3 +185,8 @@ if __name__ == "__main__":
     #     pickle.dump(seq_weights, f)
     with open(DATA_DIR / "processed" / "seq_weights_{}.npy".format(fam_id), "wb") as f:
         np.save(f, seq_weights)
+
+    seq_infos = record_seqs_infos(Path(args.MSA_file_path))
+    seq_infos.to_csv(DATA_DIR / "processed" / "seq_infos_{}.csv".format(fam_id))
+
+    print("Final alignment num sequences: {}, length: {}".format(enumd_mtx.shape[0], enumd_mtx.shape[1]))
