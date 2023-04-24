@@ -40,3 +40,9 @@ Run `project_msa.py --align-ref <PFam ID of "query" seq>`
 Each a.a. converted to a **one-hot** vector, *size = number of amino acid "types"*.
 ***Gaps encoded as 0'th position in one-hot vector***.
 => To the model, gaps are just another dimension of the same vector including all the amino acid
+
+## MSAs
+| Family ID | Family Name               | Query Seq ID             |     | 
+| --------- | ------------------------- | ------------------------ | --- |
+| PF00221   | Aromatic amino acid lyase | A0A7N6B928_ANATE/116-569 |     |
+|           |                           |                          |     |
