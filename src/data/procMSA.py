@@ -6,6 +6,7 @@ import argparse
 import json, pickle
 from pathlib import Path
 import numpy as np
+import pandas as pd
 from Bio import AlignIO
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -148,6 +149,18 @@ def calc_seq_weights(msa: np.array) -> np.array:
     seq_weight_tots = np.sum(weights_mtx, axis=1)
     return (1.0/np.sum(seq_weight_tots) * seq_weight_tots)
 
+def record_seqs_infos(MSA_file_name: Path) -> pd.DataFrame:
+    """
+    returns sequence IDs, names and "source" species name in a DataFrame
+    """
+    msa = AlignIO.read(MSA_file_name, "stockholm")
+
+    data = []
+    for seq in msa:
+        data.append([seq.id, seq.name, seq.description])
+    
+    return pd.DataFrame(data)
+
 if __name__ == "__main__":
     parser = init_argparse()
     args = parser.parse_args()
@@ -172,5 +185,8 @@ if __name__ == "__main__":
     #     pickle.dump(seq_weights, f)
     with open(DATA_DIR / "processed" / "seq_weights_{}.npy".format(fam_id), "wb") as f:
         np.save(f, seq_weights)
+
+    seq_infos = record_seqs_infos(Path(args.MSA_file_path))
+    seq_infos.to_csv(DATA_DIR / "processed" / "seq_infos_{}.csv".format(fam_id))
 
     print("Final alignment num sequences: {}, length: {}".format(enumd_mtx.shape[0], enumd_mtx.shape[1]))
