@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pickle
 import torch
 import torch.nn as nn
@@ -14,7 +15,7 @@ class MSA_to_OneHot(object):
     def __init__(self, n_aa: int = 21):
         self.n_aa = n_aa
 
-    def __call__(self, enumd_seq: np.ndarray) -> torch.Tensor:
+    def __call__(self, enumd_seq: torch.Tensor) -> torch.Tensor:
         """
         Convert a protein multiple sequence alignment to a one-hot encoding.
 
@@ -32,7 +33,7 @@ class MSA_to_OneHot(object):
         print("before transform:", enumd_seq)
         assert(enumd_seq.ndim == 1)
         # +1 to include '0', which represents alignment gaps
-        return F.one_hot(torch.from_numpy(enumd_seq), num_classes=(self.n_aa))
+        return F.one_hot(enumd_seq, num_classes=(self.n_aa))
 
 # 1. load processed, enumerated sequence alignment
 # 2. convert NP array to tensor
@@ -43,7 +44,7 @@ class MSA_Dataset(Dataset):
     Helps manage processed multiple sequence alignment and related data.
     '''
 
-    def __init__(self, enumd_msa: np.ndarray, seq_weight: np.ndarray, seqIDs: np.ndarray, transform=MSA_to_OneHot):
+    def __init__(self, enumd_msa: np.ndarray, seq_weight: np.ndarray, seq_infos: pd.DataFrame, transform=MSA_to_OneHot):
         '''
         enumd_msa: a two dimensional np.array, the original sequences with letters replaced by number.
                           size: [num_of_sequences, length_of_msa]
@@ -51,20 +52,21 @@ class MSA_Dataset(Dataset):
                     size: [num_sequences].
                     Weights for sequences in a MSA.
                     The sum of seq_weight has to be equal to 1 when training latent space models using VAE
-        seqIDs: name of sequences in MSA
+        seqs_infos: a pandas DataFrame with columns ["idx", "id", "name"], for a seq per row
         '''
         super(MSA_Dataset).__init__()
-        self.enumd_msa = enumd_msa
-        self.seq_weight = seq_weight
-        self.seqIDs = seqIDs
+        self.enumd_msa = torch.from_numpy(enumd_msa)
+        self.seq_weight = torch.from_numpy(seq_weight)
+        self.seqs_infos = seq_infos
         self.transform = transform()
 
     def __len__(self):
         # number of sequences
         assert(self.enumd_msa.shape[0] == self.seq_weight.shape[0])
+        assert(self.seqs_infos.shape[0] == self.seq_weight.shape[0])
         return self.enumd_msa.shape[0]
 
-    def __getitem__(self, ind):
+    def __getitem__(self, ind) -> tuple[torch.Tensor, np.float32, str]:
         """
         Returns a tuple of (sequence, weight, seq_name)
         sequence is a (# of amino acids) x (# of amino acid types) tensor,
@@ -77,8 +79,7 @@ class MSA_Dataset(Dataset):
             seq = self.transform(seq)
 
         seq = seq.to(torch.float32).flatten()
-        # return (seq, weight, self.seqIDs[ ])
-        return (seq, weight)
+        return (seq, weight, self.seqs_infos[ind]["name"])
     
 class VAE(nn.Module):
     def __init__(self, n_aa_type: int, dim_latent: int, dim_seq_in: int, layers_n_hiddens: "list[int]"):

@@ -26,11 +26,11 @@ def init_argparse() -> argparse.ArgumentParser:
     parser.add_argument('query_seq_ID', type=str, help='ID of query sequence used as the reference for the alignment.')
     return parser
 
-def prune_seqs(msa: AlignIO.MultipleSeqAlignment, query_seq_id: str) -> np.array:
+def prune_seqs(msa: AlignIO.MultipleSeqAlignment, query_seq_id: str) -> tuple[np.array, np.array]:
     '''
     For meaningful comparison, ignore gaps
+    When remove seqs from MSA, also remove corresponding rows in seqs_infos
     '''
-
     # Since query seq is reference for alignment,
     # omit gaps and corresponding positions in other seqs
 
@@ -43,38 +43,34 @@ def prune_seqs(msa: AlignIO.MultipleSeqAlignment, query_seq_id: str) -> np.array
             query_seq = msa[i].seq
             query_ind = i
             break
+
     pruneds = np.array(msa)
     pruneds = np.char.upper(pruneds)
-    # print(
-    #     ~(np.logical_or(
-    #             pruneds[query_ind,:] == '-',
-    #             pruneds[query_ind,:] == '.'
-    #         ))
-    # )
+    # keep track of "surviving" seqs by indices
+    idx = np.arange(pruneds.shape[0])
+
     # Omit query gaps
-    pruneds = pruneds[:, 
-        ~(np.logical_or(
-            pruneds[query_ind,:] == '-',
-            pruneds[query_ind,:] == '.'
-        ))
-    ]
+    gap_idx = ~(np.logical_or(
+        pruneds[query_ind,:] == '-',
+        pruneds[query_ind,:] == '.'
+    ))
+    pruneds = pruneds[:, gap_idx]
     # print("{} columns".format(pruneds.shape[1]))
     # print("query seq: {}".format(pruneds[query_ind,:]))
     # print(pruneds)
+    idx = idx[gap_idx]
 
     # Remove sequences with too many gaps
-    pruneds = pruneds[
-        np.count_nonzero((pruneds == '-') | (pruneds == '.'), axis=1)
-        <= 10,
-    :]
+    idx_gapy_seqs = np.count_nonzero((pruneds == '-') | (pruneds == '.'), axis=1) <= 10
+    pruneds = pruneds[idx_gapy_seqs, :]
+    idx = idx[idx_gapy_seqs]
 
     # Remove positions with too many gaps
-    pruneds = pruneds[:,
-        np.count_nonzero((pruneds == '-') | (pruneds == '.'), axis=0)
-        <= 0.2 * pruneds.shape[0],
-    ]
+    idx_gapy_poss = np.count_nonzero((pruneds == '-') | (pruneds == '.'), axis=0) <= 0.2 * pruneds.shape[0]
+    pruneds = pruneds[:, idx_gapy_poss]
+    idx = idx[idx_gapy_poss]
 
-    return pruneds
+    return pruneds, idx
 
 def enum_seqs(lettMSA: np.array, query_seq_id: str) -> np.array:
     '''
@@ -107,7 +103,7 @@ def enum_seqs(lettMSA: np.array, query_seq_id: str) -> np.array:
     '''
     return enums[inds]
 
-def proc_MSA(MSA_file_name: str, query_seq_id: str) -> np.array:
+def proc_MSA(MSA_file_name: str, query_seq_id: str) -> tuple[np.array, pd.DataFrame]:
     '''
     Encode an MSA into an enumeration of the amino acids,
     return as a NumPy array of dimensions
@@ -116,9 +112,9 @@ def proc_MSA(MSA_file_name: str, query_seq_id: str) -> np.array:
     '''
     # Read MSA
     msa = AlignIO.read(MSA_file_name, "stockholm")
-    procd_seqs = prune_seqs(msa, query_seq_id)
+    procd_seqs, survivor_seqs_idx = prune_seqs(msa, query_seq_id)
     procd_seqs = enum_seqs(procd_seqs, query_seq_id)
-    return procd_seqs
+    return procd_seqs, survivor_seqs_idx
 
 def calc_seq_weights(msa: np.array) -> np.array:
     '''
@@ -129,7 +125,6 @@ def calc_seq_weights(msa: np.array) -> np.array:
     returns a column vector of length
     equal to number of sequences.
     '''
-    
     # TODO: perhaps look into [using np.vectorize()](https://stackoverflow.com/a/58478502/10855624) for faster implementation
     weights_mtx = np.empty(msa.shape)
     # for each column
@@ -149,15 +144,18 @@ def calc_seq_weights(msa: np.array) -> np.array:
     seq_weight_tots = np.sum(weights_mtx, axis=1)
     return (1.0/np.sum(seq_weight_tots) * seq_weight_tots)
 
-def record_seqs_infos(MSA_file_name: Path) -> pd.DataFrame:
+def get_seqs_infos_idx(msa: AlignIO.MultipleSeqAlignment, seq_idx: np.array) -> pd.DataFrame:
     """
-    returns sequence IDs, names and "source" species name in a DataFrame
+    returns sequence IDs, names and "source" species name for
+    each sequence of index in the MSA specified in seqs_idx,
+    which is a 1D vector of indices.
     """
-    msa = AlignIO.read(MSA_file_name, "stockholm")
-
-    data = []
-    for seq in msa:
-        data.append([seq.id, seq.name, seq.description])
+    data = {}
+    for npi in seq_idx:
+        i = int(npi)
+        data["id"].append(msa[i].id)
+        data["name"].append(msa[i].name)
+        data["description"].append(msa[i].description)
     
     return pd.DataFrame(data)
 
@@ -169,24 +167,18 @@ if __name__ == "__main__":
     fam_id = args.PFAM_ID
     msas_dir = DATA_DIR / "external" / "MSA"
 
-    # enumd_mtx = proc_MSA(msas_dir / "{}.sth".format(fam_id), args.query_seq_ID)
-    enumd_mtx = proc_MSA(Path(args.MSA_file_path), args.query_seq_ID)
+    enumd_mtx, survive_idx = proc_MSA(Path(args.MSA_file_path), args.query_seq_ID)
     print("enumerated alignment: ", enumd_mtx)
-
-    # with open(DATA_DIR / "processed" / "enumd_mtx_{}.pkl".format(fam_id), "wb") as f:
-    #     pickle.dump(enumd_mtx, f)
     with open(DATA_DIR / "processed" / "enumd_mtx_{}.npy".format(fam_id), "wb") as f:
         np.save(f, enumd_mtx)
 
     seq_weights = calc_seq_weights(enumd_mtx)
     print("weights: ", seq_weights)
-
-    # with open(DATA_DIR / "processed" / "seq_weights_{}.pkl".format(fam_id), "wb") as f:
-    #     pickle.dump(seq_weights, f)
     with open(DATA_DIR / "processed" / "seq_weights_{}.npy".format(fam_id), "wb") as f:
         np.save(f, seq_weights)
 
-    seq_infos = record_seqs_infos(Path(args.MSA_file_path))
-    seq_infos.to_csv(DATA_DIR / "processed" / "seq_infos_{}.csv".format(fam_id))
+    seqs_infos = get_seqs_infos_idx(AlignIO.read(Path(args.MSA_file_path), "stockholm"), survive_idx)
+    print("sequences metadata: ", seqs_infos)
+    seqs_infos.to_csv(DATA_DIR / "processed" / "seq_infos_{}.csv".format(fam_id))
 
     print("Final alignment num sequences: {}, length: {}".format(enumd_mtx.shape[0], enumd_mtx.shape[1]))
