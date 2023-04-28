@@ -58,7 +58,6 @@ def prune_seqs(msa: AlignIO.MultipleSeqAlignment, query_seq_id: str) -> tuple[np
     # print("{} columns".format(pruneds.shape[1]))
     # print("query seq: {}".format(pruneds[query_ind,:]))
     # print(pruneds)
-    idx = idx[gap_idx]
 
     # Remove sequences with too many gaps
     idx_gapy_seqs = np.count_nonzero((pruneds == '-') | (pruneds == '.'), axis=1) <= 10
@@ -68,7 +67,6 @@ def prune_seqs(msa: AlignIO.MultipleSeqAlignment, query_seq_id: str) -> tuple[np
     # Remove positions with too many gaps
     idx_gapy_poss = np.count_nonzero((pruneds == '-') | (pruneds == '.'), axis=0) <= 0.2 * pruneds.shape[0]
     pruneds = pruneds[:, idx_gapy_poss]
-    idx = idx[idx_gapy_poss]
 
     return pruneds, idx
 
@@ -150,7 +148,7 @@ def get_seqs_infos_idx(msa: AlignIO.MultipleSeqAlignment, seq_idx: np.array) -> 
     each sequence of index in the MSA specified in seqs_idx,
     which is a 1D vector of indices.
     """
-    data = {}
+    data = {"id": [], "name": [], "description": []}
     for npi in seq_idx:
         i = int(npi)
         data["id"].append(msa[i].id)

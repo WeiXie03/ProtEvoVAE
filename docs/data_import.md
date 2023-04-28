@@ -42,7 +42,7 @@ Each a.a. converted to a **one-hot** vector, *size = number of amino acid "types
 => To the model, gaps are just another dimension of the same vector including all the amino acid
 
 ## MSAs
-| Family ID | Family Name               | Query Seq ID             |     | 
-| --------- | ------------------------- | ------------------------ | --- |
-| PF00221   | Aromatic amino acid lyase | A0A7N6B928_ANATE/116-569 |     |
-|           |                           |                          |     |
+| Family ID | Family Name                    | Query Seq ID             |     |
+| --------- | ------------------------------ | ------------------------ | --- |
+| PF00221   | Aromatic amino acid lyase      | A0A7N6B928_ANATE/116-569 |     |
+| PF00288   | GHMP kinases N terminal domain | A0A345H609_9FLAO/80-147  |     |
