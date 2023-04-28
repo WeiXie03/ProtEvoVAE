@@ -75,7 +75,7 @@ class MSA_Dataset(Dataset):
         weight = self.seq_weight[ind]
 
         if self.transform:
-            print("applying transform: ", self.transform)
+            print("applying transform ", self.transform)
             seq = self.transform(seq)
 
         seq = seq.to(torch.float32).flatten()
@@ -189,9 +189,10 @@ class VAE(nn.Module):
         log_ps = self.decoder(z)
 
         # calculate log p(x|z)
-        # element-wise prod on one-hot encoding with
-        # log p(each aa type in one-hot encoding)
-        # = p(the real aa type, the single 1 in x_i, for each pos)
+        # element-wise prod between:
+        #   one-hot encoding and
+        #   log p(each aa type in one-hot encoding)
+        # = {for each pos i, p(the 1 true aa type, the single 1 in x_i)}
         log_PxIz = torch.sum(x*log_ps, -1)
 
         # for two diagonal normals
