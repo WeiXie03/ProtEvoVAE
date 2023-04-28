@@ -32,7 +32,6 @@ class MSA_to_OneHot(object):
         # print("before transform shape:", enumd_seq.shape)
         print("before transform:", enumd_seq)
         assert(enumd_seq.ndim == 1)
-        # +1 to include '0', which represents alignment gaps
         return F.one_hot(enumd_seq, num_classes=(self.n_aa))
 
 # 1. load processed, enumerated sequence alignment
@@ -79,7 +78,7 @@ class MSA_Dataset(Dataset):
             seq = self.transform(seq)
 
         seq = seq.to(torch.float32).flatten()
-        return (seq, weight, self.seqs_infos[ind]["name"])
+        return (seq, weight, self.seqs_infos.iloc[ind]["name"])
     
 class VAE(nn.Module):
     def __init__(self, n_aa_type: int, dim_latent: int, dim_seq_in: int, layers_n_hiddens: "list[int]"):
@@ -122,15 +121,15 @@ class VAE(nn.Module):
         self.enc_mu = nn.Linear(self.layers_n_hiddens[-1], self.dim_latent)
         self.enc_logvars = nn.Linear(self.layers_n_hiddens[-1], self.dim_latent)
 
-        decoder = nn.ModuleList([nn.Sequential(
+        self.decoder = nn.ModuleList([nn.Sequential(
             nn.Linear(self.dim_latent, self.layers_n_hiddens[0]),
             nn.Tanh()
         )])
-        decoder.extend(hidden_layers)
-        decoder.append(nn.Sequential(
+        self.decoder.extend(hidden_layers)
+        self.decoder.append(nn.Sequential(
             nn.Linear(self.layers_n_hiddens[-1], self.dim_seq_in)
         ))
-        decoder = nn.Sequential(*decoder)
+        self.decoder = nn.Sequential(*self.decoder)
 
         """
         For convenient epsilon (noise) sampling
